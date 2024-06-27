@@ -1,16 +1,14 @@
 use std::{collections::HashMap, path::PathBuf, time::Instant};
 
-use rayon::prelude::*;
-
 use anyhow::Result;
-use async_trait::async_trait;
 use colored::Colorize;
 use glob::glob;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::{metrics, Embedder};
+use crate::{import, metrics, Embedder};
 
-use super::{Configuration, Document, Embeddings, VectorStore};
+use super::{Configuration, Document, Embeddings};
 
 #[derive(Serialize, Deserialize)]
 struct Store {
@@ -48,14 +46,14 @@ impl Store {
     }
 }
 
-pub struct NaiveVectorStore {
+pub struct VectorStore {
     config: Configuration,
     embedder: Box<dyn Embedder>,
     store: Store,
 }
 
-impl NaiveVectorStore {
-    fn from_data_path(embedder: Box<dyn Embedder>, config: Configuration) -> Result<Self> {
+impl VectorStore {
+    pub fn new(embedder: Box<dyn Embedder>, config: Configuration) -> Result<Self> {
         let store = Store::from_data_path(&config.data_path)?;
         Ok(Self {
             config,
@@ -64,30 +62,36 @@ impl NaiveVectorStore {
         })
     }
 
-    async fn import_new_documents(&mut self) -> Result<()> {
+    pub async fn import_new_documents(&mut self) -> Result<()> {
         let path = std::fs::canonicalize(&self.config.source_path)?
             .display()
             .to_string();
-        let expr = format!("{}/**/*.txt", path);
+
+        let expr = format!("{}/**/*.*", path);
         let start = Instant::now();
         let mut new = 0;
 
         for path in (glob(&expr)?).flatten() {
-            let docs = if let Some(chunk_size) = self.config.chunk_size {
-                Document::from_text_file(&path)?.chunks(chunk_size)?
-            } else {
-                vec![Document::from_text_file(&path)?]
-            };
+            match import::import_document_from(&path) {
+                Ok(doc) => {
+                    let docs = if let Some(chunk_size) = self.config.chunk_size {
+                        doc.chunks(chunk_size)?
+                    } else {
+                        vec![doc]
+                    };
 
-            for doc in docs {
-                match self.add(doc).await {
-                    Err(err) => eprintln!("ERROR storing {}: {}", path.display(), err),
-                    Ok(added) => {
-                        if added {
-                            new += 1
+                    for doc in docs {
+                        match self.add(doc).await {
+                            Err(err) => eprintln!("ERROR storing {}: {}", path.display(), err),
+                            Ok(added) => {
+                                if added {
+                                    new += 1
+                                }
+                            }
                         }
                     }
                 }
+                Err(err) => println!("{}", err),
             }
         }
 
@@ -102,23 +106,8 @@ impl NaiveVectorStore {
 
         Ok(())
     }
-}
 
-#[async_trait]
-impl VectorStore for NaiveVectorStore {
-    #[allow(clippy::borrowed_box)]
-    async fn new(embedder: Box<dyn Embedder>, config: Configuration) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        let mut store = Self::from_data_path(embedder, config)?;
-
-        store.import_new_documents().await?;
-
-        Ok(store)
-    }
-
-    async fn add(&mut self, mut document: Document) -> Result<bool> {
+    pub async fn add(&mut self, mut document: Document) -> Result<bool> {
         let doc_id = document.get_ident().to_string();
         let doc_path = document.get_path().to_string();
 
@@ -151,7 +140,7 @@ impl VectorStore for NaiveVectorStore {
         Ok(true)
     }
 
-    async fn retrieve(&self, query: &str, top_k: usize) -> Result<Vec<(Document, f64)>> {
+    pub async fn retrieve(&self, query: &str, top_k: usize) -> Result<Vec<(Document, f64)>> {
         println!("[{}] {} (top {})", "rag".bold(), query, top_k);
 
         let query_vector = self.embedder.embed(query).await?;

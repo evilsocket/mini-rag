@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{io::Read, path::Path};
 
 use anyhow::Result;
 
@@ -15,11 +15,19 @@ pub struct Document {
 }
 
 impl Document {
-    pub fn from_text_file(path: &Path) -> Result<Self> {
+    pub fn from_reader<R>(path: &Path, mut reader: R) -> Result<Self>
+    where
+        R: Read,
+    {
         let path = std::fs::canonicalize(path.display().to_string())?
             .display()
             .to_string();
-        let data = Some(std::fs::read_to_string(&path)?);
+
+        let mut data = String::new();
+
+        reader.read_to_string(&mut data)?;
+
+        let data = Some(data);
         let ident = sha256::digest(data.as_ref().unwrap());
         Ok(Self { path, data, ident })
     }
