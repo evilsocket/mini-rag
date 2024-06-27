@@ -5,12 +5,11 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-pub(crate) use document::Document;
-
 mod document;
 mod metrics;
 mod naive;
 
+pub use document::*;
 pub use metrics::*;
 pub use naive::*;
 
