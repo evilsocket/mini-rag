@@ -33,6 +33,8 @@ impl mini_rag::Embedder for OllamaEmbedder {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
+
     // db configuration
     let config = mini_rag::Configuration {
         // folder containing documents to import

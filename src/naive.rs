@@ -1,7 +1,6 @@
 use std::{collections::HashMap, path::PathBuf, time::Instant};
 
 use anyhow::Result;
-use colored::Colorize;
 use glob::glob;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -82,7 +81,7 @@ impl VectorStore {
 
                     for doc in docs {
                         match self.add(doc).await {
-                            Err(err) => eprintln!("ERROR storing {}: {}", path.display(), err),
+                            Err(err) => log::error!("storing {}: {}", path.display(), err),
                             Ok(added) => {
                                 if added {
                                     new += 1
@@ -91,17 +90,12 @@ impl VectorStore {
                         }
                     }
                 }
-                Err(err) => println!("{}", err),
+                Err(err) => log::warn!("{} {err}", path.display()),
             }
         }
 
         if new > 0 {
-            println!(
-                "[{}] {} new documents indexed in {:?}\n",
-                "rag".bold(),
-                new,
-                start.elapsed(),
-            );
+            log::info!("{} new documents indexed in {:?}\n", new, start.elapsed(),);
         }
 
         Ok(())
@@ -112,13 +106,12 @@ impl VectorStore {
         let doc_path = document.get_path().to_string();
 
         if self.store.documents.contains_key(&doc_id) {
-            // println!("document with id '{}' already indexed", &doc_id);
+            log::debug!("document with id '{}' already indexed", &doc_id);
             return Ok(false);
         }
 
-        print!(
-            "[{}] indexing new document '{}' ({} bytes) ...",
-            "rag".bold(),
+        log::info!(
+            "indexing new document '{}' ({} bytes) ...",
             doc_path,
             document.get_byte_size()?
         );
@@ -135,13 +128,13 @@ impl VectorStore {
 
         self.store.to_data_path(&self.config.data_path)?;
 
-        println!(" time={:?} embedding_size={}", start.elapsed(), size);
+        log::debug!("time={:?} embedding_size={}", start.elapsed(), size);
 
         Ok(true)
     }
 
     pub async fn retrieve(&self, query: &str, top_k: usize) -> Result<Vec<(Document, f64)>> {
-        println!("[{}] {} (top {})", "rag".bold(), query, top_k);
+        log::debug!("{} (top {})", query, top_k);
 
         let query_vector = self.embedder.embed(query).await?;
         let mut results = vec![];

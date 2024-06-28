@@ -8,7 +8,7 @@ pub(crate) fn import_document_from(path: &PathBuf) -> Result<Document> {
     let ext = if let Some(ext) = path.extension() {
         ext.to_str().unwrap()
     } else {
-        "<unknown>"
+        ""
     }
     .to_lowercase();
 

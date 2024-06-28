@@ -2,7 +2,6 @@ use std::{io::Read, path::Path};
 
 use anyhow::Result;
 
-use colored::Colorize;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -42,7 +41,6 @@ impl Document {
 
     pub fn get_data(&mut self) -> Result<&str> {
         if self.data.is_none() {
-            println!("[{}] lazy loading {}", "rag".bold(), &self.path);
             self.data = Some(std::fs::read_to_string(&self.path)?);
         }
 
