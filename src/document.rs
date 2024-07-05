@@ -64,7 +64,7 @@ impl Document {
             .enumerate()
             .map(|(idx, chunk)| Document {
                 ident: format!("{}@{}", self.ident, idx),
-                path: format!("{}@{}", self.path, idx),
+                path: format!("{}", self.path),
                 data: Some(chunk.iter().collect::<String>()),
             })
             .collect());
